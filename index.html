@@ -191,6 +191,35 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
+        /* =========================
+           SISTEMA DE ÁUDIO DO JOGO
+           ========================= */
+
+        const SOUNDS = {
+            music: new Audio('assets/sounds/bg_music.mp3'),
+            shoot: new Audio('assets/sounds/shoot.mp3'),
+            skillR: new Audio('assets/sounds/skill_r.mp3'),
+            click: new Audio('assets/sounds/click.mp3'),
+            hit: new Audio('assets/sounds/hit.mp3'),
+            death: new Audio('assets/sounds/death.mp3')
+        };
+
+        // Configurações
+        SOUNDS.music.loop = true;
+        SOUNDS.music.volume = 0.4;
+
+        SOUNDS.shoot.volume = 0.6;
+        SOUNDS.skillR.volume = 0.7;
+        SOUNDS.click.volume = 0.5;
+        SOUNDS.hit.volume = 0.6;
+        SOUNDS.death.volume = 0.8;
+
+        function playSound(sound) {
+            if (!sound) return;
+            sound.currentTime = 0;
+            sound.play().catch(() => {});
+        }
+
         (function() {
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
@@ -420,6 +449,7 @@
                     const lastUsed = this.skillCooldowns[this.activeSkill] || 0;
 
                     if(now - lastUsed < skill.cooldown) return;
+playSound(SOUNDS.skillR);
 
                     this.executeSkillLogic(this.activeSkill);
                     this.skillCooldowns[this.activeSkill] = now;
@@ -620,10 +650,11 @@
                 }
 
                 shoot() {
-                    const ang = Math.atan2(G.mouse.y - this.y, G.mouse.x - this.x);
-                    G.entities.bullets.push(new Bullet(this.x, this.y, ang, this.weapon));
-                    this.lastShot = performance.now();
-                }
+    const ang = Math.atan2(G.mouse.y - this.y, G.mouse.x - this.x);
+    G.entities.bullets.push(new Bullet(this.x, this.y, ang, this.weapon));
+    playSound(SOUNDS.shoot);
+    this.lastShot = performance.now();
+}
 
                 draw() {
                     ctx.save();
@@ -640,7 +671,8 @@
                 }
             }
 
-            window.initGame = function(heroIdx) {
+            window.initGame = function(heroIdx) {playSound(SOUNDS.music);
+
                 document.getElementById('selection-screen').classList.add('hidden');
                 document.getElementById('ui-layer').classList.remove('hidden');
                 G.entities.player = new Player(heroIdx);

@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry War: SrGuii 1943</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-magenta: #ff00ea;
+            --neon-purple: #bc13fe;
+            --bg-dark: #050505;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background: var(--bg-dark);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+            height: 100%; width: 100%;
+        }
+
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        canvas { display: block; image-rendering: pixelated; }
+
+        .glass-panel {
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+        }
+
+        .neon-btn {
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .neon-btn:hover {
+            background: var(--neon-cyan);
+            color: black;
+            box-shadow: 0 0 30px var(--neon-cyan);
+            transform: translateY(-2px);
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .floating { animation: float 3s ease-in-out infinite; }
+
+        .damage-number {
+            position: absolute;
+            pointer-events: none;
+            font-family: 'Orbitron';
+            font-weight: 900;
+            animation: dmgRise 0.8s ease-out forwards;
+            z-index: 100;
+        }
+
+        @keyframes dmgRise {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1.5); }
+        }
+
+        #ui-layer { pointer-events: none; }
+        #ui-layer * { pointer-events: auto; }
+
+        .scanline {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none; z-index: 1000;
+        }
+
+        .skill-item {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .skill-item:hover { transform: scale(1.02); }
+
+        .cooldown-overlay {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            transition: height 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    
+    <div id="chest-container" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
+        <div id="chest-timer" class="glass-panel px-6 py-2 rounded-full border border-yellow-500/50 text-yellow-400 font-orbitron font-bold text-lg">
+            BAÚ: 15:00
+        </div>
+        <button id="claim-btn" class="hidden mt-3 px-8 py-3 bg-yellow-500 text-black font-black rounded-lg floating shadow-[0_0_30px_#eab308] hover:scale-110 transition" onclick="claimRewards()">
+            <i class="fas fa-box-open mr-2"></i> RESGATAR METRYCOINS
+        </button>
+    </div>
+
+    <!-- Menu Principal -->
+    <div id="menu-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-[#020202]">
+        <div class="text-center">
+            <h1 class="text-8xl font-orbitron font-black italic tracking-tighter mb-2 text-white">GEOMETRY <span class="text-cyan-400">WAR</span></h1>
+            <p class="text-cyan-700 tracking-[0.8em] font-bold text-sm mb-12">AT WAR SINCE 1943</p>
+            <button onclick="showSelection()" class="neon-btn px-16 py-5 rounded-xl text-2xl font-black uppercase tracking-widest">ENTRAR NA GUERRA</button>
+        </div>
+    </div>
+
+    <!-- Seleção de Personagem -->
+    <div id="selection-screen" class="fixed inset-0 z-[90] hidden flex items-center justify-center bg-[#020202]/95 p-10">
+        <div class="grid grid-cols-3 gap-10 max-w-6xl">
+            <div onclick="initGame(0)" class="glass-panel p-10 rounded-3xl border-2 border-transparent hover:border-cyan-400 transition cursor-pointer group">
+                <div class="text-7xl mb-6 group-hover:scale-125 transition">⚡</div>
+                <h3 class="text-3xl font-orbitron font-bold text-cyan-400">VOLTZ</h3>
+                <p class="text-gray-500 mt-2">Protocolo Elétrico. Alta mobilidade e choque em cadeia.</p>
+            </div>
+            <div onclick="initGame(1)" class="glass-panel p-10 rounded-3xl border-2 border-transparent hover:border-orange-400 transition cursor-pointer group">
+                <div class="text-7xl mb-6 group-hover:scale-125 transition">🔥</div>
+                <h3 class="text-3xl font-orbitron font-bold text-orange-400">TITAN</h3>
+                <p class="text-gray-500 mt-2">Protocolo Quente. Resistência extrema e dano explosivo.</p>
+            </div>
+            <div onclick="initGame(2)" class="glass-panel p-10 rounded-3xl border-2 border-transparent hover:border-blue-400 transition cursor-pointer group">
+                <div class="text-7xl mb-6 group-hover:scale-125 transition">❄️</div>
+                <h3 class="text-3xl font-orbitron font-bold text-blue-400">GHOST</h3>
+                <p class="text-gray-500 mt-2">Protocolo Criogênico. Controle de grupo e furtividade.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD do Jogo -->
+    <div id="ui-layer" class="fixed inset-0 z-40 hidden">
+        <div class="absolute top-8 left-8 flex gap-4">
+            <div class="glass-panel p-5 rounded-2xl flex items-center gap-6 border-l-4 border-cyan-400">
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-black tracking-widest text-cyan-500 uppercase">Vida</span>
+                    <div class="w-48 h-2 bg-gray-900 rounded-full mt-2 overflow-hidden">
+                        <div id="hp-bar" class="h-full bg-cyan-400 transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <span class="text-[10px] font-black tracking-widest text-yellow-500 uppercase">METRYCOINS</span>
+                    <div id="coin-txt" class="text-2xl font-orbitron font-bold text-yellow-400">500</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Habilidade Ativa (R) -->
+        <div class="absolute bottom-8 right-8 flex flex-col items-end gap-2">
+            <span class="text-[10px] font-black tracking-widest text-purple-500 uppercase">Habilidade Ativa [R]</span>
+            <div id="skill-slot-r" class="glass-panel w-20 h-20 rounded-xl relative overflow-hidden border-2 border-purple-500/50 flex items-center justify-center">
+                <div id="skill-icon-r" class="text-3xl">🚫</div>
+                <div id="skill-cooldown-r" class="cooldown-overlay h-0"></div>
+                <div id="skill-timer-r" class="absolute inset-0 flex items-center justify-center font-orbitron font-bold text-white text-xl"></div>
+            </div>
+        </div>
+
+        <div class="absolute top-8 right-8 text-right">
+            <div id="sector-txt" class="text-4xl font-orbitron font-black italic text-white">ESTÁGIO 01</div>
+            <div id="xp-txt" class="text-xs font-bold text-cyan-600 mt-1 uppercase tracking-widest">Nível 1 | XP: 0%</div>
+        </div>
+
+        <div class="absolute bottom-10 left-10 flex gap-4">
+            <button onclick="openPanel('shop')" class="glass-panel px-8 py-3 rounded-xl border-cyan-500/30 hover:bg-cyan-500/10 text-cyan-400 font-bold uppercase text-sm tracking-widest">Loja (TAB)</button>
+            <button onclick="openPanel('skills')" class="glass-panel px-8 py-3 rounded-xl border-purple-500/30 hover:bg-purple-500/10 text-purple-400 font-bold uppercase text-sm tracking-widest">Habilidades (U)</button>
+        </div>
+    </div>
+
+    <!-- Modais -->
+    <div id="modal-container" class="fixed inset-0 z-[110] hidden bg-black/90 flex items-center justify-center p-8">
+        <div class="glass-panel w-full max-w-5xl rounded-[2.5rem] p-12 max-h-[85vh] overflow-y-auto border-cyan-500/50">
+            <div class="flex justify-between items-center mb-10">
+                <h2 id="modal-title" class="text-5xl font-orbitron font-black italic text-cyan-400 uppercase">Loja</h2>
+                <button onclick="closePanel()" class="text-4xl text-gray-600 hover:text-white">&times;</button>
+            </div>
+            <div id="modal-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const G = {
+                width: 0, height: 0,
+                lastTime: 0,
+                deltaTime: 0,
+                running: false,
+                paused: false,
+                coins: 500,
+                xp: 0,
+                level: 1,
+                stage: 1,
+                chestSeconds: 15 * 60,
+                mouse: { x: 0, y: 0, pressed: false },
+                keys: {},
+                entities: { player: null, enemies: [], bullets: [], particles: [], special: [] },
+                config: { spawnRate: 0.005, baseDifficulty: 1 }
+            };
+            window.G = G;
+
+            const WEAPONS = Array.from({length: 20}, (_, i) => ({
+                id: i,
+                name: `MARK-${i+1}`,
+                damage: 25 + (i * 15),
+                speed: 12 + (i * 0.4),
+                fireRate: 200 - (i * 4),
+                cost: Math.floor(600 * Math.pow(1.3, i)),
+                unlocked: i === 0,
+                color: `hsl(${180 + (i * 10)}, 100%, 60%)`
+            }));
+
+            // Habilidades Específicas por Personagem
+            const SKILLS_BY_HERO = [
+                // 0: VOLT (Elétrico)
+                {
+                    'v1': { name: 'Eletrosalto', desc: 'Salto elétrico para o cursor.', cost: 1000, cooldown: 2000, icon: '⚡' },
+                    'v2': { name: 'Raio em Cadeia', desc: 'Acerta múltiplos alvos próximos.', cost: 2500, cooldown: 5000, icon: '🔗' },
+                    'v3': { name: 'Campo Estático', desc: 'Paralisa inimigos ao redor.', cost: 3000, cooldown: 8000, icon: '🔋' },
+                    'v4': { name: 'Tempestade de Íons', desc: 'Chuva de raios aleatórios.', cost: 6000, cooldown: 15000, icon: '🌩️' },
+                    'v5': { name: 'Sobrecarga', desc: 'Dobra velocidade de tiro por 5s.', cost: 4000, cooldown: 12000, icon: '⏫' },
+                    'v6': { name: 'Flash Blitz', desc: 'Dano massivo em linha reta.', cost: 5500, cooldown: 10000, icon: '☄️' },
+                    'v7': { name: 'Mina Galvânica', desc: 'Deixa mina que explode eletricidade.', cost: 2000, cooldown: 4000, icon: '💥' },
+                    'v8': { name: 'Escudo de Plasma', desc: 'Reflete projéteis por 3s.', cost: 4500, cooldown: 20000, icon: '🛡️' },
+                    'v9': { name: 'Teletransporte Curto', desc: 'Shift rápido na direção do movimento.', cost: 1500, cooldown: 1000, icon: '⏭️' },
+                    'v10': { name: 'Pulso Eletromagnético', desc: 'Desativa inimigos num raio enorme.', cost: 7000, cooldown: 25000, icon: '📡' },
+                    'v11': { name: 'Nuvem Condutora', desc: 'Dano contínuo numa área.', cost: 3500, cooldown: 9000, icon: '☁️' },
+                    'v12': { name: 'Chicote de Energia', desc: 'Ataque circular de curto alcance.', cost: 2800, cooldown: 3000, icon: '➰' },
+                    'v13': { name: 'Lança Relâmpago', desc: 'Tiro de alta precisão e perfuração.', cost: 5000, cooldown: 6000, icon: '🔱' },
+                    'v14': { name: 'Singularidade Elétrica', desc: 'Puxa inimigos para o centro.', cost: 8000, cooldown: 18000, icon: '🕳️' },
+                    'v15': { name: 'Poder de Zeus', desc: 'Explosão final que ocupa a tela.', cost: 15000, cooldown: 45000, icon: '👑' }
+                },
+                // 1: TITAN (Fogo)
+                {
+                    't1': { name: 'Impacto Ígneo', desc: 'Pulo que gera onda de fogo.', cost: 1000, cooldown: 3000, icon: '☄️' },
+                    't2': { name: 'Lança-Chamas', desc: 'Cone de fogo contínuo (2s).', cost: 3000, cooldown: 6000, icon: '🔥' },
+                    't3': { name: 'Armadura de Lava', desc: 'Imunidade a dano por 2s.', cost: 5000, cooldown: 15000, icon: '🌋' },
+                    't4': { name: 'Meteoro Central', desc: 'Cai um meteoro gigante no cursor.', cost: 8000, cooldown: 20000, icon: '☄️' },
+                    't5': { name: 'Trilha de Cinzas', desc: 'Deixa fogo por onde passa.', cost: 2000, cooldown: 5000, icon: '🛤️' },
+                    't6': { name: 'Erupção Solar', desc: 'Explosão circular devastadora.', cost: 6500, cooldown: 12000, icon: '☀️' },
+                    't7': { name: 'Fúria Vulcânica', desc: 'Aumenta dano em 50% por 8s.', cost: 4000, cooldown: 25000, icon: '👺' },
+                    't8': { name: 'Bombardeio de Nafta', desc: 'Múltiplas bolas de fogo aleatórias.', cost: 4500, cooldown: 10000, icon: '💣' },
+                    't9': { name: 'Muralha de Magma', desc: 'Barreira que queima quem encosta.', cost: 3500, cooldown: 14000, icon: '🧱' },
+                    't10': { name: 'Cometa Térmico', desc: 'Investida que explode no final.', cost: 5500, cooldown: 8000, icon: '🌠' },
+                    't11': { name: 'Sopro de Dragão', desc: 'Dano por segundo em área frontal.', cost: 2500, cooldown: 4000, icon: '🐲' },
+                    't12': { name: 'Núcleo Instável', desc: 'Explode ao redor após 1s.', cost: 3800, cooldown: 7000, icon: '☢️' },
+                    't13': { name: 'Supernova Estelar', desc: 'Dano massivo para quem olha.', cost: 9000, cooldown: 30000, icon: '💥' },
+                    't14': { name: 'Chuva de Brasas', desc: 'Dano persistente global leve.', cost: 7000, cooldown: 22000, icon: '🌧️' },
+                    't15': { name: 'Fim dos Tempos', desc: 'Destruição total do setor.', cost: 20000, cooldown: 60000, icon: '💀' }
+                },
+                // 2: GHOST (Gelo)
+                {
+                    'g1': { name: 'Sopro Gélido', desc: 'Congela inimigos na frente.', cost: 1200, cooldown: 4000, icon: '🌬️' },
+                    'g2': { name: 'Adaga de Gelo', desc: 'Disparo rápido que atravessa.', cost: 2000, cooldown: 1000, icon: '🗡️' },
+                    'g3': { name: 'Cúpula Zero', desc: 'Cria área de lentidão extrema.', cost: 3500, cooldown: 10000, icon: '❄️' },
+                    'g4': { name: 'Invisibilidade', desc: 'Inimigos não te seguem (4s).', cost: 6000, cooldown: 18000, icon: '👻' },
+                    'g5': { name: 'Explosão de Granizo', desc: 'Fragmentos que ricocheteiam.', cost: 4000, cooldown: 8000, icon: '🧊' },
+                    'g6': { name: 'Clone de Cristal', desc: 'Cria chamariz que explode.', cost: 5000, cooldown: 12000, icon: '👤' },
+                    'g7': { name: 'Chuva Congelante', desc: 'Reduz armadura e velocidade.', cost: 4500, cooldown: 15000, icon: '🌧️' },
+                    'g8': { name: 'Nevasca', desc: 'Tempestade que rodeia o jogador.', cost: 7500, cooldown: 25000, icon: '🌀' },
+                    'g9': { name: 'Lança Perfurante', desc: 'Dano crítico em alvos congelados.', cost: 3000, cooldown: 5000, icon: '📍' },
+                    'g10': { name: 'Passo do Inverno', desc: 'Teleporte com rastro de gelo.', cost: 2500, cooldown: 3000, icon: '👟' },
+                    'g11': { name: 'Prisão Ártica', desc: 'Atordoa todos os inimigos visíveis.', cost: 8000, cooldown: 28000, icon: '🕸️' },
+                    'g12': { name: 'Vento Cortante', desc: 'Projéteis de gelo em 360 graus.', cost: 3800, cooldown: 6000, icon: '☸️' },
+                    'g13': { name: 'Estalactite Cadente', desc: 'Dano massivo num ponto único.', cost: 5500, cooldown: 9000, icon: '💎' },
+                    'g14': { name: 'Zero Absoluto', desc: 'Imobiliza e causa dano por tempo.', cost: 10000, cooldown: 35000, icon: '🛑' },
+                    'g15': { name: 'Glaciação Eterna', desc: 'Dizima o exército inimigo.', cost: 18000, cooldown: 50000, icon: '🌌' }
+                }
+            ];
+
+            function resize() {
+                G.width = window.innerWidth;
+                G.height = window.innerHeight;
+                canvas.width = G.width;
+                canvas.height = G.height;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Particle {
+                constructor(x, y, color, size = 3, vx, vy, lifeDec = 0.02) {
+                    this.x = x; this.y = y;
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = Math.random() * 4 + 1;
+                    this.vx = vx !== undefined ? vx : Math.cos(ang) * spd;
+                    this.vy = vy !== undefined ? vy : Math.sin(ang) * spd;
+                    this.life = 1.0;
+                    this.color = color;
+                    this.size = size;
+                    this.lifeDec = lifeDec;
+                }
+                update() {
+                    this.x += this.vx; this.y += this.vy;
+                    this.life -= this.lifeDec;
+                    return this.life > 0;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = this.life;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 5; ctx.shadowColor = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            class Bullet {
+                constructor(x, y, angle, weapon) {
+                    this.x = x; this.y = y;
+                    this.vx = Math.cos(angle) * weapon.speed;
+                    this.vy = Math.sin(angle) * weapon.speed;
+                    this.damage = weapon.damage;
+                    this.color = weapon.color;
+                    this.piercing = weapon.piercing || 1;
+                }
+                update() {
+                    this.x += this.vx; this.y += this.vy;
+                    return (this.x > 0 && this.x < G.width && this.y > 0 && this.y < G.height);
+                }
+                draw() {
+                    ctx.save();
+                    ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            class Enemy {
+                constructor() {
+                    const edge = Math.floor(Math.random()*4);
+                    if(edge==0){this.x=-50;this.y=Math.random()*G.height}
+                    else if(edge==1){this.x=G.width+50;this.y=Math.random()*G.height}
+                    else if(edge==2){this.x=Math.random()*G.width;this.y=-50}
+                    else {this.x=Math.random()*G.width;this.y=G.height+50}
+
+                    this.hp = 40 + (G.level * 20);
+                    this.speed = 1.5 + (Math.random() * G.config.baseDifficulty);
+                    this.radius = 20 + Math.random()*10;
+                    this.color = `hsl(${Math.random()*360}, 70%, 50%)`;
+                    this.hitTime = 0;
+                    this.isFrozen = false;
+                    this.isSlowed = false;
+                }
+                update() {
+                    if(this.isFrozen) return true;
+                    const mod = this.isSlowed ? 0.3 : 1.0;
+                    const ang = Math.atan2(G.entities.player.y - this.y, G.entities.player.x - this.x);
+                    this.x += Math.cos(ang) * this.speed * mod;
+                    this.y += Math.sin(ang) * this.speed * mod;
+                    if(this.hitTime > 0) this.hitTime--;
+                    return this.hp > 0;
+                }
+                draw() {
+                    ctx.save();
+                    if(this.isFrozen) ctx.shadowBlur = 20, ctx.shadowColor = '#00f3ff';
+                    if(this.hitTime > 0) ctx.filter = 'brightness(3)';
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    for(let i=0; i<6; i++) {
+                        const a = (i/6)*Math.PI*2;
+                        ctx.lineTo(this.x + Math.cos(a)*this.radius, this.y + Math.sin(a)*this.radius);
+                    }
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            class Player {
+                constructor(idx) {
+                    this.heroIdx = idx;
+                    this.x = G.width/2; this.y = G.height/2;
+                    this.hp = 200; this.maxHp = 200;
+                    this.weapon = WEAPONS[0];
+                    this.color = ['#00f3ff', '#ff8800', '#44aaff'][idx];
+                    this.lastShot = 0;
+                    this.radius = 25;
+                    this.skillsOwned = [];
+                    this.activeSkill = null;
+                    this.skillCooldowns = {};
+                    this.isInvincible = false;
+                    this.isInvisible = false;
+                    this.dmgMultiplier = 1;
+                    this.speedMultiplier = 1;
+                    this.fireRateMultiplier = 1;
+                }
+                update() {
+                    let spd = 5.5 * this.speedMultiplier;
+                    if(G.keys['KeyW']) this.y -= spd;
+                    if(G.keys['KeyS']) this.y += spd;
+                    if(G.keys['KeyA']) this.x -= spd;
+                    if(G.keys['KeyD']) this.x += spd;
+
+                    this.x = Math.max(this.radius, Math.min(G.width - this.radius, this.x));
+                    this.y = Math.max(this.radius, Math.min(G.height - this.radius, this.y));
+
+                    if(G.mouse.pressed && performance.now() - this.lastShot > (this.weapon.fireRate * this.fireRateMultiplier)) {
+                        this.shoot();
+                    }
+                }
+
+                useActiveSkill() {
+                    if(!this.activeSkill) return;
+                    const skill = SKILLS_BY_HERO[this.heroIdx][this.activeSkill];
+                    const now = performance.now();
+                    const lastUsed = this.skillCooldowns[this.activeSkill] || 0;
+
+                    if(now - lastUsed < skill.cooldown) return;
+
+                    this.executeSkillLogic(this.activeSkill);
+                    this.skillCooldowns[this.activeSkill] = now;
+                }
+
+                // --- LÓGICA DE HABILIDADES REESCRITA E FUNCIONAL ---
+                executeSkillLogic(id) {
+                    const enemies = G.entities.enemies;
+                    const mx = G.mouse.x;
+                    const my = G.mouse.y;
+                    const px = this.x;
+                    const py = this.y;
+
+                    // Cada habilidade tem sua própria animação de partículas e lógica
+                    switch(id) {
+                        // VOLT (V1-V15)
+                        case 'v1': // Eletrosalto
+                            for(let i=0; i<15; i++) G.entities.particles.push(new Particle(px, py, '#00f3ff', 4));
+                            this.x = mx; this.y = my;
+                            for(let i=0; i<15; i++) G.entities.particles.push(new Particle(this.x, this.y, '#ffffff', 4));
+                            break;
+                        case 'v2': // Raio em Cadeia
+                            enemies.forEach(e => {
+                                if(Math.hypot(e.x - px, e.y - py) < 400) {
+                                    e.hp -= 300; e.hitTime = 10;
+                                    for(let i=0; i<5; i++) G.entities.particles.push(new Particle(e.x, e.y, '#00f3ff', 2));
+                                }
+                            });
+                            break;
+                        case 'v3': // Campo Estático
+                            enemies.forEach(e => {
+                                if(Math.hypot(e.x - px, e.y - py) < 350) {
+                                    e.isFrozen = true;
+                                    setTimeout(() => e.isFrozen = false, 3000);
+                                    for(let i=0; i<10; i++) G.entities.particles.push(new Particle(e.x, e.y, '#00f3ff', 3, 0, 0, 0.01));
+                                }
+                            });
+                            break;
+                        case 'v4': // Tempestade de Íons
+                            for(let i=0; i<20; i++) {
+                                setTimeout(() => {
+                                    const rx = px + (Math.random() - 0.5) * 600;
+                                    const ry = py + (Math.random() - 0.5) * 600;
+                                    enemies.forEach(e => { if(Math.hypot(e.x-rx, e.y-ry) < 100) e.hp -= 400; });
+                                    for(let j=0; j<10; j++) G.entities.particles.push(new Particle(rx, ry, 'white', 5));
+                                }, i * 100);
+                            }
+                            break;
+                        case 'v5': // Sobrecarga
+                            this.fireRateMultiplier = 0.4;
+                            this.speedMultiplier = 1.5;
+                            setTimeout(() => { this.fireRateMultiplier = 1.0; this.speedMultiplier = 1.0; }, 5000);
+                            for(let i=0; i<30; i++) G.entities.particles.push(new Particle(px, py, 'yellow', 2));
+                            break;
+                        case 'v6': // Flash Blitz
+                            const angV6 = Math.atan2(my - py, mx - px);
+                            for(let i=0; i<600; i += 20) {
+                                const bx = px + Math.cos(angV6) * i;
+                                const by = py + Math.sin(angV6) * i;
+                                enemies.forEach(e => { if(Math.hypot(e.x-bx, e.y-by) < 60) e.hp -= 600; });
+                                G.entities.particles.push(new Particle(bx, by, '#00f3ff', 6, 0, 0, 0.05));
+                            }
+                            break;
+                        case 'v7': // Mina Galvânica
+                            const mina = { x: px, y: py, color: 'cyan', life: 200 };
+                            G.entities.special.push({
+                                update: () => {
+                                    mina.life--;
+                                    G.entities.particles.push(new Particle(mina.x, mina.y, 'cyan', 2, (Math.random()-0.5)*2, (Math.random()-0.5)*2, 0.1));
+                                    enemies.forEach(e => {
+                                        if(Math.hypot(e.x-mina.x, e.y-mina.y) < 50) {
+                                            enemies.forEach(en => { if(Math.hypot(en.x-mina.x, en.y-mina.y) < 200) en.hp -= 500; });
+                                            mina.life = 0;
+                                        }
+                                    });
+                                    return mina.life > 0;
+                                }, draw: () => {}
+                            });
+                            break;
+                        case 'v8': // Escudo de Plasma
+                            this.isInvincible = true;
+                            const tV8 = setInterval(() => {
+                                for(let i=0; i<8; i++) {
+                                    const a = Math.random()*Math.PI*2;
+                                    G.entities.particles.push(new Particle(this.x + Math.cos(a)*50, this.y + Math.sin(a)*50, 'cyan', 2, 0, 0, 0.1));
+                                }
+                            }, 50);
+                            setTimeout(() => { this.isInvincible = false; clearInterval(tV8); }, 3000);
+                            break;
+                        case 'v9': // Teletransporte Curto
+                            const angV9 = Math.atan2(my - py, mx - px);
+                            this.x += Math.cos(angV9) * 200;
+                            this.y += Math.sin(angV9) * 200;
+                            for(let i=0; i<15; i++) G.entities.particles.push(new Particle(px, py, 'white', 2));
+                            break;
+                        case 'v10': // PEM
+                            enemies.forEach(e => {
+                                e.hp -= 200; e.isSlowed = true;
+                                setTimeout(() => e.isSlowed = false, 10000);
+                            });
+                            for(let r=0; r<G.width; r+=50) {
+                                setTimeout(() => {
+                                    for(let a=0; a<Math.PI*2; a+=0.5) G.entities.particles.push(new Particle(px + Math.cos(a)*r, py + Math.sin(a)*r, 'purple', 4, 0, 0, 0.1));
+                                }, r/2);
+                            }
+                            break;
+                        case 'v15': // Poder de Zeus
+                            enemies.forEach(e => { e.hp -= 2000; e.hitTime = 20; });
+                            for(let i=0; i<100; i++) {
+                                G.entities.particles.push(new Particle(Math.random()*G.width, Math.random()*G.height, 'white', 10, 0, 0, 0.02));
+                            }
+                            break;
+
+                        // TITAN (T1-T15)
+                        case 't1': // Impacto Ígneo
+                            this.x = mx; this.y = my;
+                            enemies.forEach(e => { if(Math.hypot(e.x-mx, e.y-my) < 250) e.hp -= 400; });
+                            for(let i=0; i<40; i++) G.entities.particles.push(new Particle(mx, my, 'orange', 6));
+                            break;
+                        case 't2': // Lança-Chamas
+                            const angT2 = Math.atan2(my - py, mx - px);
+                            for(let i=0; i<20; i++) {
+                                setTimeout(() => {
+                                    for(let j=0; j<10; j++) {
+                                        const drift = (Math.random()-0.5)*0.5;
+                                        const bX = this.x + Math.cos(angT2+drift)*150;
+                                        const bY = this.y + Math.sin(angT2+drift)*150;
+                                        G.entities.particles.push(new Particle(this.x, this.y, 'red', 8, Math.cos(angT2+drift)*10, Math.sin(angT2+drift)*10, 0.05));
+                                        enemies.forEach(e => { if(Math.hypot(e.x-bX, e.y-bY) < 100) e.hp -= 20; });
+                                    }
+                                }, i * 50);
+                            }
+                            break;
+                        case 't3': // Armadura de Lava
+                            this.isInvincible = true;
+                            setTimeout(() => this.isInvincible = false, 4000);
+                            for(let i=0; i<30; i++) G.entities.particles.push(new Particle(px, py, 'orange', 5, (Math.random()-0.5)*10, (Math.random()-0.5)*10, 0.01));
+                            break;
+                        case 't4': // Meteoro
+                            for(let i=0; i<20; i++) G.entities.particles.push(new Particle(mx, my-400, 'red', 10, 0, 15, 0.01));
+                            setTimeout(() => {
+                                enemies.forEach(e => { if(Math.hypot(e.x-mx, e.y-my) < 300) e.hp -= 1000; });
+                                for(let i=0; i<50; i++) G.entities.particles.push(new Particle(mx, my, 'orange', 12));
+                            }, 500);
+                            break;
+                        case 't6': // Erupção Solar
+                            for(let a=0; a<Math.PI*2; a+=0.1) {
+                                for(let d=0; d<400; d+=20) {
+                                    G.entities.particles.push(new Particle(px + Math.cos(a)*d, py + Math.sin(a)*d, 'yellow', 4, 0, 0, 0.05));
+                                }
+                            }
+                            enemies.forEach(e => { if(Math.hypot(e.x-px, e.y-py) < 400) e.hp -= 800; });
+                            break;
+
+                        // GHOST (G1-G15)
+                        case 'g1': // Sopro Gélido
+                            const angG1 = Math.atan2(my-py, mx-px);
+                            enemies.forEach(e => {
+                                const eAng = Math.atan2(e.y-py, e.x-px);
+                                if(Math.abs(eAng - angG1) < 0.5 && Math.hypot(e.x-px, e.y-py) < 400) {
+                                    e.isFrozen = true; setTimeout(() => e.isFrozen = false, 5000);
+                                    e.hp -= 100;
+                                }
+                            });
+                            for(let i=0; i<50; i++) G.entities.particles.push(new Particle(px, py, '#00f3ff', 4, Math.cos(angG1+(Math.random()-0.5))*12, Math.sin(angG1+(Math.random()-0.5))*12));
+                            break;
+                        case 'g4': // Invisibilidade
+                            this.isInvisible = true;
+                            for(let i=0; i<20; i++) G.entities.particles.push(new Particle(px, py, 'gray', 3));
+                            setTimeout(() => this.isInvisible = false, 4000);
+                            break;
+                        case 'g8': // Nevasca
+                            const tG8 = setInterval(() => {
+                                for(let i=0; i<10; i++) {
+                                    const a = Math.random()*Math.PI*2;
+                                    const r = Math.random()*300;
+                                    const bx = this.x + Math.cos(a)*r;
+                                    const by = this.y + Math.sin(a)*r;
+                                    G.entities.particles.push(new Particle(bx, by, 'white', 2, 0, 0, 0.1));
+                                    enemies.forEach(e => { if(Math.hypot(e.x-bx, e.y-by) < 50) { e.hp -= 5; e.isSlowed = true; } });
+                                }
+                            }, 100);
+                            setTimeout(() => clearInterval(tG8), 6000);
+                            break;
+                        case 'g11': // Prisão Ártica
+                            enemies.forEach(e => {
+                                e.isFrozen = true; e.hp -= 200;
+                                setTimeout(() => e.isFrozen = false, 4000);
+                                for(let i=0; i<8; i++) G.entities.particles.push(new Particle(e.x, e.y, '#white', 3, 0, 0, 0.05));
+                            });
+                            break;
+
+                        default: // Lógica reserva para IDs não implementados detalhadamente
+                            enemies.forEach(e => { if(Math.hypot(e.x-px, e.y-py) < 300) { e.hp -= 300; e.hitTime = 5; } });
+                            for(let i=0; i<20; i++) G.entities.particles.push(new Particle(px, py, this.color, 5));
+                            break;
+                    }
+                }
+
+                shoot() {
+                    const ang = Math.atan2(G.mouse.y - this.y, G.mouse.x - this.x);
+                    G.entities.bullets.push(new Bullet(this.x, this.y, ang, this.weapon));
+                    this.lastShot = performance.now();
+                }
+
+                draw() {
+                    ctx.save();
+                    if(this.isInvisible) ctx.globalAlpha = 0.2;
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(Math.atan2(G.mouse.y - this.y, G.mouse.x - this.x));
+                    ctx.shadowBlur = this.isInvincible ? 40 : 20; 
+                    ctx.shadowColor = this.isInvincible ? 'white' : this.color;
+                    ctx.strokeStyle = this.isInvincible ? 'gold' : 'white'; ctx.lineWidth = 4;
+                    ctx.strokeRect(-18, -18, 36, 36);
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(10, -10, 10, 5); ctx.fillRect(10, 5, 10, 5);
+                    ctx.restore();
+                }
+            }
+
+            window.initGame = function(heroIdx) {
+                document.getElementById('selection-screen').classList.add('hidden');
+                document.getElementById('ui-layer').classList.remove('hidden');
+                G.entities.player = new Player(heroIdx);
+                G.running = true;
+                
+                setInterval(() => {
+                    if(G.running && !G.paused && G.chestSeconds > 0) {
+                        G.chestSeconds--;
+                        const m = Math.floor(G.chestSeconds / 60);
+                        const s = G.chestSeconds % 60;
+                        document.getElementById('chest-timer').innerText = `BAÚ: ${m}:${s < 10 ? '0'+s : s}`;
+                        if(G.chestSeconds === 0) document.getElementById('claim-btn').classList.remove('hidden');
+                    }
+                }, 1000);
+
+                requestAnimationFrame(gameLoop);
+            };
+
+            window.showSelection = function() {
+                document.getElementById('menu-screen').classList.add('hidden');
+                document.getElementById('selection-screen').classList.remove('hidden');
+            };
+
+            window.claimRewards = function() {
+                G.coins += 5000;
+                G.chestSeconds = 15 * 60;
+                document.getElementById('claim-btn').classList.add('hidden');
+                updateUI();
+            };
+
+            function gameLoop(time) {
+                if(!G.running) return;
+                G.deltaTime = time - G.lastTime;
+                G.lastTime = time;
+
+                if(!G.paused) {
+                    update();
+                }
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            function update() {
+                G.entities.player.update();
+                updateSkillHUD();
+
+                if(Math.random() < G.config.spawnRate + (G.level * 0.001)) {
+                    G.entities.enemies.push(new Enemy());
+                }
+
+                // Update Special Objects
+                G.entities.special = G.entities.special.filter(s => s.update());
+
+                G.entities.bullets = G.entities.bullets.filter(b => {
+                    let active = b.update();
+                    G.entities.enemies.forEach(en => {
+                        if(Math.hypot(b.x - en.x, b.y - en.y) < en.radius + 5) {
+                            en.hp -= b.damage * G.entities.player.dmgMultiplier;
+                            en.hitTime = 5;
+                            active = false;
+                            createDamagePopup(en.x, en.y, b.damage);
+                            if(en.hp <= 0) {
+                                G.coins += 50; G.xp += 20;
+                                checkLvl(); updateUI();
+                                for(let i=0; i<10; i++) G.entities.particles.push(new Particle(en.x, en.y, en.color));
+                            }
+                        }
+                    });
+                    return active;
+                });
+
+                G.entities.enemies = G.entities.enemies.filter(en => {
+                    const alive = en.update();
+                    if(!G.entities.player.isInvincible && !G.entities.player.isInvisible && Math.hypot(G.entities.player.x - en.x, G.entities.player.y - en.y) < en.radius + 20) {
+                        G.entities.player.hp -= 0.5;
+                        updateUI();
+                        if(G.entities.player.hp <= 0) gameOver();
+                    }
+                    return alive;
+                });
+
+                G.entities.particles = G.entities.particles.filter(p => p.update());
+            }
+
+            function updateSkillHUD() {
+                if(!G.entities.player.activeSkill) return;
+                const skill = SKILLS_BY_HERO[G.entities.player.heroIdx][G.entities.player.activeSkill];
+                const lastUsed = G.entities.player.skillCooldowns[G.entities.player.activeSkill] || 0;
+                const elapsed = performance.now() - lastUsed;
+                const cdOverlay = document.getElementById('skill-cooldown-r');
+                const timerTxt = document.getElementById('skill-timer-r');
+
+                if(elapsed < skill.cooldown) {
+                    const perc = 100 - (elapsed / skill.cooldown * 100);
+                    cdOverlay.style.height = perc + '%';
+                    timerTxt.innerText = ((skill.cooldown - elapsed) / 1000).toFixed(1);
+                } else {
+                    cdOverlay.style.height = '0%';
+                    timerTxt.innerText = '';
+                }
+            }
+
+            function draw() {
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0, 0, G.width, G.height);
+                
+                ctx.strokeStyle = 'rgba(0, 243, 255, 0.03)';
+                for(let x=0; x<G.width; x+=80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,G.height); ctx.stroke(); }
+                for(let y=0; y<G.height; y+=80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(G.width,y); ctx.stroke(); }
+
+                G.entities.special.forEach(s => s.draw());
+                G.entities.enemies.forEach(e => e.draw());
+                G.entities.bullets.forEach(b => b.draw());
+                G.entities.particles.forEach(p => p.draw());
+                G.entities.player.draw();
+            }
+
+            function updateUI() {
+                const hpBar = document.getElementById('hp-bar');
+                const coinTxt = document.getElementById('coin-txt');
+                const xpTxt = document.getElementById('xp-txt');
+                const sectorTxt = document.getElementById('sector-txt');
+
+                if(hpBar) hpBar.style.width = (G.entities.player.hp / G.entities.player.maxHp * 100) + '%';
+                if(coinTxt) coinTxt.innerText = Math.floor(G.coins).toLocaleString();
+                if(xpTxt) xpTxt.innerText = `Nível ${G.level} | XP: ${Math.floor(G.xp)}%`;
+                if(sectorTxt) sectorTxt.innerText = `ESTÁGIO ${String(G.stage).padStart(2, '0')}`;
+            }
+
+            function createDamagePopup(x, y, dmg) {
+                const d = document.createElement('div');
+                d.className = 'damage-number';
+                d.style.left = x + 'px'; d.style.top = y + 'px';
+                d.style.color = 'white';
+                d.innerText = Math.floor(dmg);
+                document.body.appendChild(d);
+                setTimeout(() => d.remove(), 800);
+            }
+
+            function checkLvl() {
+                if(G.xp >= 100 * G.level) { G.xp = 0; G.level++; G.stage++; G.entities.player.hp = Math.min(G.entities.player.maxHp, G.entities.player.hp + 50); updateUI(); }
+            }
+
+            window.openPanel = function(type) {
+                G.paused = true;
+                canvas.style.filter = 'blur(10px) brightness(0.5)';
+                const modal = document.getElementById('modal-container');
+                const grid = document.getElementById('modal-grid');
+                const title = document.getElementById('modal-title');
+                modal.classList.remove('hidden');
+                grid.innerHTML = '';
+
+                if(type === 'shop') {
+                    title.innerText = 'Arsenal 1943';
+                    WEAPONS.forEach(w => {
+                        const card = document.createElement('div');
+                        card.className = `glass-panel p-6 rounded-2xl flex flex-col justify-between ${w.unlocked ? 'border-cyan-500/50' : 'opacity-60'}`;
+                        card.innerHTML = `
+                            <div>
+                                <h4 class="font-orbitron font-bold text-xl mb-1" style="color:${w.color}">${w.name}</h4>
+                                <p class="text-xs text-gray-500 uppercase">Dano: ${w.damage}</p>
+                            </div>
+                            <button onclick="buyWeapon(${w.id})" class="mt-4 py-2 rounded bg-cyan-500/20 text-cyan-400 font-bold hover:bg-cyan-500 hover:text-black transition">
+                                ${w.unlocked ? (G.entities.player.weapon.id == w.id ? 'Equipado' : 'Equipar') : `$${w.cost.toLocaleString()}`}
+                            </button>
+                        `;
+                        grid.appendChild(card);
+                    });
+                } else {
+                    title.innerText = 'Protocolos de Elite';
+                    const heroSkills = SKILLS_BY_HERO[G.entities.player.heroIdx];
+                    Object.keys(heroSkills).forEach(id => {
+                        const s = heroSkills[id];
+                        const owned = G.entities.player.skillsOwned.includes(id);
+                        const isEquipped = G.entities.player.activeSkill === id;
+                        const card = document.createElement('div');
+                        card.className = `glass-panel p-6 rounded-2xl skill-item ${isEquipped ? 'border-purple-500 bg-purple-500/10' : ''}`;
+                        card.innerHTML = `
+                            <div class="text-3xl mb-2">${s.icon}</div>
+                            <h4 class="font-orbitron font-bold text-lg text-purple-400">${s.name}</h4>
+                            <p class="text-[10px] text-gray-400 my-2 leading-tight">${s.desc}</p>
+                            <button onclick="buySkill('${id}', ${s.cost})" class="w-full py-2 mt-2 rounded bg-purple-500/20 text-purple-400 font-bold hover:bg-purple-500 hover:text-white transition">
+                                ${owned ? (isEquipped ? 'Equipado' : 'Equipar') : `$${s.cost.toLocaleString()}`}
+                            </button>
+                        `;
+                        grid.appendChild(card);
+                    });
+                }
+            };
+
+            window.closePanel = function() {
+                G.paused = false;
+                canvas.style.filter = '';
+                document.getElementById('modal-container').classList.add('hidden');
+            };
+
+            window.buyWeapon = (id) => {
+                const w = WEAPONS[id];
+                if(w.unlocked) { G.entities.player.weapon = w; closePanel(); }
+                else if(G.coins >= w.cost) { G.coins -= w.cost; w.unlocked = true; G.entities.player.weapon = w; updateUI(); closePanel(); }
+            };
+
+            window.buySkill = (id, cost) => {
+                if(G.entities.player.skillsOwned.includes(id)) {
+                    G.entities.player.activeSkill = id;
+                    document.getElementById('skill-icon-r').innerText = SKILLS_BY_HERO[G.entities.player.heroIdx][id].icon;
+                    closePanel();
+                } else if(G.coins >= cost) {
+                    G.coins -= cost; G.entities.player.skillsOwned.push(id);
+                    G.entities.player.activeSkill = id;
+                    document.getElementById('skill-icon-r').innerText = SKILLS_BY_HERO[G.entities.player.heroIdx][id].icon;
+                    updateUI(); closePanel();
+                }
+            };
+
+            function gameOver() {
+                G.running = false;
+                alert("PROTOCOL FAIL: INTEGRITY ZERO");
+                location.reload();
+            }
+
+            window.addEventListener('keydown', e => {
+                G.keys[e.code] = true;
+                if(e.code === 'KeyR' && G.running && !G.paused) G.entities.player.useActiveSkill();
+            });
+            window.addEventListener('keyup', e => {
+                G.keys[e.code] = false;
+                if(e.code === 'Tab') { e.preventDefault(); openPanel('shop'); }
+                if(e.code === 'KeyU') { e.preventDefault(); openPanel('skills'); }
+            });
+            window.addEventListener('mousemove', e => { G.mouse.x = e.clientX; G.mouse.y = e.clientY; });
+            window.addEventListener('mousedown', () => G.mouse.pressed = true);
+            window.addEventListener('mouseup', () => G.mouse.pressed = false);
+        })();
+    </script>
+</body>
+</html>
